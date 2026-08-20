@@ -107,8 +107,7 @@ impl TelemetryCollector {
         self.last_network_sample = Instant::now();
 
         SystemMetrics {
-            timestamp: chrono::Utc::now().to_rfc3339(),
-
+            timestamp: chrono::Utc::now(),
             cpu_usage,
 
             memory_used,

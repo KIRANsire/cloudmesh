@@ -1,8 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct SystemMetrics {
-    pub timestamp: String,
+    pub timestamp: DateTime<Utc>,
 
     pub cpu_usage: f32,
 
