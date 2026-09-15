@@ -5,7 +5,9 @@ mod telemetry;
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::get,
     Json,
     Router,
@@ -15,7 +17,13 @@ use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
 use db::create_pool;
-use models::SystemMetrics;
+use models::{
+    ErrorResponse,
+    HistoricalMetricsResponse,
+    HistoryQueryParams,
+    MetricsRange,
+    SystemMetrics,
+};
 use telemetry::TelemetryCollector;
 
 type SharedMetrics = Arc<RwLock<SystemMetrics>>;
@@ -33,6 +41,36 @@ struct HealthResponse {
     version: String,
 }
 
+#[derive(Debug)]
+pub enum ApiError {
+    InvalidRange(String),
+    DatabaseError(String),
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let (status, error_code, message) = match self {
+            ApiError::InvalidRange(msg) => (
+                StatusCode::BAD_REQUEST,
+                "invalid_range",
+                msg,
+            ),
+            ApiError::DatabaseError(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "database_error",
+                msg,
+            ),
+        };
+
+        let body = Json(ErrorResponse {
+            error: error_code.to_string(),
+            message,
+        });
+
+        (status, body).into_response()
+    }
+}
+
 async fn health_check() -> Json<HealthResponse> {
     Json(HealthResponse {
         service: "cloudmesh".to_string(),
@@ -47,6 +85,50 @@ async fn get_metrics(
     let metrics = state.metrics.read().await;
 
     Json(metrics.clone())
+}
+
+async fn get_metrics_history(
+    State(state): State<AppState>,
+    Query(params): Query<HistoryQueryParams>,
+) -> Result<Json<HistoricalMetricsResponse>, ApiError> {
+    let range_raw = params.range.as_deref().unwrap_or("");
+    let range = MetricsRange::parse(range_raw).map_err(|_| {
+        ApiError::InvalidRange(
+            MetricsRange::INVALID_RANGE_MESSAGE.to_string(),
+        )
+    })?;
+
+    let end_time = chrono::Utc::now();
+    let start_time = end_time - range.duration();
+
+    let metrics = db::get_metrics_history(
+        &state.db_pool,
+        start_time,
+        db::MAX_HISTORICAL_METRICS_LIMIT,
+    )
+    .await
+    .map_err(|err| {
+        eprintln!("Database error while querying historical metrics: {err}");
+        ApiError::DatabaseError("Unable to retrieve historical metrics".to_string())
+    })?;
+
+    let count = metrics.len();
+
+    Ok(Json(HistoricalMetricsResponse {
+        range: range.as_str().to_string(),
+        start_time,
+        end_time,
+        count,
+        metrics,
+    }))
+}
+
+fn create_app(state: AppState) -> Router {
+    Router::new()
+        .route("/api/health", get(health_check))
+        .route("/api/metrics", get(get_metrics))
+        .route("/api/metrics/history", get(get_metrics_history))
+        .with_state(state)
 }
 
 #[tokio::main]
@@ -132,13 +214,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Create Axum application.
-    let app = Router::new()
-        .route("/api/health", get(health_check))
-        .route("/api/metrics", get(get_metrics))
-        .with_state(AppState {
-            metrics: shared_metrics,
-            db_pool,
-        });
+    let app_state = AppState {
+        metrics: shared_metrics,
+        db_pool,
+    };
+    let app = create_app(app_state);
 
     // Start HTTP server.
     let listener = tokio::net::TcpListener::bind(

@@ -1,9 +1,16 @@
+use chrono::{DateTime, Utc};
 use sqlx::{
     postgres::PgPoolOptions,
     PgPool,
+    Row,
 };
 
 use crate::models::SystemMetrics;
+
+/// Maximum number of records returned by a single historical telemetry query
+/// to prevent unbounded memory usage and maintain database/API responsiveness.
+/// At 5-second collection intervals, 10,000 records covers ~13.8 hours of continuous telemetry.
+pub const MAX_HISTORICAL_METRICS_LIMIT: i64 = 10_000;
 
 /// Creates a PostgreSQL connection pool for CloudMesh.
 pub async fn create_pool(
@@ -47,4 +54,50 @@ pub async fn insert_metrics(
     .await?;
 
     Ok(())
+}
+
+/// Queries historical telemetry records from PostgreSQL starting from `start_time`
+/// up to `limit` records, ordered chronologically (oldest to newest).
+pub async fn get_metrics_history(
+    pool: &PgPool,
+    start_time: DateTime<Utc>,
+    limit: i64,
+) -> Result<Vec<SystemMetrics>, sqlx::Error> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            timestamp,
+            cpu_usage,
+            memory_used,
+            memory_total,
+            disk_used,
+            disk_total,
+            network_rx,
+            network_tx
+        FROM telemetry
+        WHERE timestamp >= $1
+        ORDER BY timestamp ASC
+        LIMIT $2;
+        "#,
+    )
+    .bind(start_time)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    let metrics = rows
+        .into_iter()
+        .map(|row| SystemMetrics {
+            timestamp: row.get("timestamp"),
+            cpu_usage: row.get("cpu_usage"),
+            memory_used: row.get::<i64, _>("memory_used") as u64,
+            memory_total: row.get::<i64, _>("memory_total") as u64,
+            disk_used: row.get::<i64, _>("disk_used") as u64,
+            disk_total: row.get::<i64, _>("disk_total") as u64,
+            network_received: row.get::<i64, _>("network_rx") as u64,
+            network_transmitted: row.get::<i64, _>("network_tx") as u64,
+        })
+        .collect();
+
+    Ok(metrics)
 }
