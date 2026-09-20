@@ -119,6 +119,36 @@ pub struct ErrorResponse {
     pub message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Node {
+    pub node_id: String,
+    pub hostname: String,
+    pub os: String,
+    pub architecture: String,
+    pub agent_version: String,
+    pub status: String, // Online or Offline, computed dynamically
+    pub last_seen: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct RegisterNodeRequest {
+    pub node_id: String,
+    pub hostname: String,
+    pub os: String,
+    pub architecture: String,
+    pub agent_version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TelemetryPayload {
+    pub node_id: String,
+    #[serde(flatten)]
+    pub metrics: SystemMetrics,
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
