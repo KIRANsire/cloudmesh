@@ -1,0 +1,374 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+
+    font-family:
+        Inter,
+        Segoe UI,
+        Arial,
+        sans-serif;
+
+    background: #080b10;
+    color: #e8edf5;
+}
+
+.topbar {
+    height: 72px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 32px;
+
+    border-bottom: 1px solid #1c2430;
+
+    background: #0c1017;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo {
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    background: #00e5ff;
+    color: #001014;
+
+    font-weight: 800;
+}
+
+.brand h1 {
+    margin: 0;
+
+    font-size: 18px;
+}
+
+.brand span {
+    color: #7e8999;
+
+    font-size: 12px;
+}
+
+.connection {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    color: #8d99aa;
+
+    font-size: 13px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+
+    background: #00e676;
+}
+
+.container {
+    max-width: 1400px;
+
+    margin: auto;
+
+    padding: 32px;
+}
+
+.section {
+    margin-bottom: 36px;
+}
+
+.section-header {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 18px;
+}
+
+.section-header h2,
+.section-header h3 {
+    margin: 0 0 6px;
+}
+
+.section-header p {
+    margin: 0;
+
+    color: #758195;
+
+    font-size: 13px;
+}
+
+button,
+select {
+    border: 1px solid #283242;
+
+    background: #111722;
+
+    color: #dce4ef;
+
+    padding: 9px 14px;
+
+    border-radius: 8px;
+
+    cursor: pointer;
+}
+
+button:hover {
+    border-color: #00e5ff;
+}
+
+.stats-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap: 16px;
+}
+
+.stat-card {
+    padding: 22px;
+
+    border: 1px solid #1d2633;
+
+    border-radius: 12px;
+
+    background: #0d121a;
+}
+
+.stat-card strong {
+    display: block;
+
+    margin-top: 10px;
+
+    font-size: 32px;
+}
+
+.stat-label {
+    color: #788498;
+
+    font-size: 13px;
+}
+
+.online strong {
+    color: #00e676;
+}
+
+.offline strong {
+    color: #ff5252;
+}
+
+.nodes-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill, minmax(280px, 1fr));
+
+    gap: 16px;
+}
+
+.node-card {
+    padding: 20px;
+
+    border: 1px solid #1d2633;
+
+    border-radius: 12px;
+
+    background: #0d121a;
+
+    cursor: pointer;
+
+    transition:
+        border-color 0.15s,
+        transform 0.15s;
+}
+
+.node-card:hover {
+    border-color: #00e5ff;
+
+    transform: translateY(-2px);
+}
+
+.node-header {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 18px;
+}
+
+.node-name {
+    font-size: 16px;
+
+    font-weight: 600;
+}
+
+.node-status {
+    display: flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    font-size: 12px;
+}
+
+.node-status-dot {
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+}
+
+.node-status.online {
+    color: #00e676;
+}
+
+.node-status.online .node-status-dot {
+    background: #00e676;
+}
+
+.node-status.offline {
+    color: #ff5252;
+}
+
+.node-status.offline .node-status-dot {
+    background: #ff5252;
+}
+
+.node-info {
+    display: grid;
+
+    gap: 8px;
+}
+
+.node-info-row {
+    display: flex;
+
+    justify-content: space-between;
+
+    color: #7d899a;
+
+    font-size: 12px;
+}
+
+.node-info-row strong {
+    color: #dce4ef;
+
+    font-weight: 500;
+}
+
+.metrics-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(5, 1fr);
+
+    gap: 12px;
+
+    margin-bottom: 18px;
+}
+
+.metric-card {
+    padding: 18px;
+
+    border: 1px solid #1d2633;
+
+    border-radius: 10px;
+
+    background: #0d121a;
+}
+
+.metric-card span {
+    display: block;
+
+    color: #778398;
+
+    font-size: 12px;
+}
+
+.metric-card strong {
+    display: block;
+
+    margin-top: 8px;
+
+    font-size: 21px;
+}
+
+.history-card {
+    padding: 20px;
+
+    border: 1px solid #1d2633;
+
+    border-radius: 12px;
+
+    background: #0d121a;
+}
+
+.chart-container {
+    height: 300px;
+
+    position: relative;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.loading {
+    padding: 30px;
+
+    text-align: center;
+
+    color: #687487;
+}
+
+.hidden {
+    display: none;
+}
+
+@media (max-width: 900px) {
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metrics-grid {
+        grid-template-columns:
+            repeat(2, 1fr);
+    }
+
+}
+
+@media (max-width: 600px) {
+
+    .container {
+        padding: 18px;
+    }
+
+    .topbar {
+        padding: 0 18px;
+    }
+
+}

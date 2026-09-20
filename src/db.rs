@@ -1,15 +1,21 @@
 use chrono::{DateTime, Utc};
+use sha2::{Digest, Sha256};
 use sqlx::{
     postgres::PgPoolOptions,
     PgPool,
     Row,
 };
 
-use crate::models::{SystemMetrics, Node, RegisterNodeRequest};
+use crate::models::{
+    Node,
+    RegisterNodeRequest,
+    SystemMetrics,
+};
 
-/// Maximum number of records returned by a single historical telemetry query
-/// to prevent unbounded memory usage and maintain database/API responsiveness.
-/// At 5-second collection intervals, 10,000 records covers ~13.8 hours of continuous telemetry.
+/// Maximum number of records returned by a single historical telemetry query.
+///
+/// At 5-second collection intervals:
+/// 10,000 records ≈ 13.8 hours of telemetry.
 pub const MAX_HISTORICAL_METRICS_LIMIT: i64 = 10_000;
 
 /// Creates a PostgreSQL connection pool for CloudMesh.
@@ -22,6 +28,75 @@ pub async fn create_pool(
         .await
 }
 
+/// Hashes an API key using SHA-256.
+///
+/// CloudMesh never needs to store the raw API key in PostgreSQL.
+/// Only the SHA-256 hash is stored.
+fn hash_api_key(api_key: &str) -> String {
+    let mut hasher = Sha256::new();
+
+    hasher.update(api_key.as_bytes());
+
+    let result = hasher.finalize();
+
+    hex::encode(result)
+}
+
+/// Authenticates an API key and returns the node that owns it.
+///
+/// Returns:
+/// - Ok(Some(node_id)) if the key is valid
+/// - Ok(None) if the key is invalid/revoked/not found
+/// - Err(...) if PostgreSQL fails
+pub async fn authenticate_api_key(
+    pool: &PgPool,
+    api_key: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    if api_key.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let key_hash = hash_api_key(api_key);
+
+    let row = sqlx::query(
+        r#"
+        SELECT node_id
+        FROM node_api_keys
+        WHERE key_hash = $1
+          AND revoked_at IS NULL
+        LIMIT 1
+        "#,
+    )
+    .bind(&key_hash)
+    .fetch_optional(pool)
+    .await?;
+
+    let node_id = match row {
+        Some(row) => {
+            let node_id: String = row.get("node_id");
+
+            // Record successful API-key usage.
+            sqlx::query(
+                r#"
+                UPDATE node_api_keys
+                SET last_used_at = NOW()
+                WHERE key_hash = $1
+                  AND revoked_at IS NULL
+                "#,
+            )
+            .bind(&key_hash)
+            .execute(pool)
+            .await?;
+
+            Some(node_id)
+        }
+
+        None => None,
+    };
+
+    Ok(node_id)
+}
+
 /// Registers or updates a node in the database.
 pub async fn register_node(
     pool: &PgPool,
@@ -29,8 +104,25 @@ pub async fn register_node(
 ) -> Result<Node, sqlx::Error> {
     let row = sqlx::query(
         r#"
-        INSERT INTO nodes (node_id, hostname, os, architecture, agent_version, status, last_seen)
-        VALUES ($1, $2, $3, $4, $5, 'online', NOW())
+        INSERT INTO nodes (
+            node_id,
+            hostname,
+            os,
+            architecture,
+            agent_version,
+            status,
+            last_seen
+        )
+        VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            'online',
+            NOW()
+        )
+
         ON CONFLICT (node_id) DO UPDATE SET
             hostname = EXCLUDED.hostname,
             os = EXCLUDED.os,
@@ -39,8 +131,18 @@ pub async fn register_node(
             status = 'online',
             last_seen = NOW(),
             updated_at = NOW()
-        RETURNING node_id, hostname, os, architecture, agent_version, status, last_seen, created_at, updated_at
-        "#
+
+        RETURNING
+            node_id,
+            hostname,
+            os,
+            architecture,
+            agent_version,
+            status,
+            last_seen,
+            created_at,
+            updated_at
+        "#,
     )
     .bind(&req.node_id)
     .bind(&req.hostname)
@@ -64,40 +166,66 @@ pub async fn register_node(
 }
 
 /// Lists all known nodes.
-pub async fn list_nodes(pool: &PgPool) -> Result<Vec<Node>, sqlx::Error> {
+pub async fn list_nodes(
+    pool: &PgPool,
+) -> Result<Vec<Node>, sqlx::Error> {
     let rows = sqlx::query(
         r#"
-        SELECT node_id, hostname, os, architecture, agent_version, status, last_seen, created_at, updated_at
+        SELECT
+            node_id,
+            hostname,
+            os,
+            architecture,
+            agent_version,
+            status,
+            last_seen,
+            created_at,
+            updated_at
         FROM nodes
         ORDER BY node_id ASC
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
 
-    let nodes = rows.into_iter().map(|row| Node {
-        node_id: row.get("node_id"),
-        hostname: row.get("hostname"),
-        os: row.get("os"),
-        architecture: row.get("architecture"),
-        agent_version: row.get("agent_version"),
-        status: row.get("status"),
-        last_seen: row.get("last_seen"),
-        created_at: row.get("created_at"),
-        updated_at: row.get("updated_at"),
-    }).collect();
+    let nodes = rows
+        .into_iter()
+        .map(|row| Node {
+            node_id: row.get("node_id"),
+            hostname: row.get("hostname"),
+            os: row.get("os"),
+            architecture: row.get("architecture"),
+            agent_version: row.get("agent_version"),
+            status: row.get("status"),
+            last_seen: row.get("last_seen"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        })
+        .collect();
 
     Ok(nodes)
 }
 
-/// Gets a specific node by its ID.
-pub async fn get_node(pool: &PgPool, node_id: &str) -> Result<Option<Node>, sqlx::Error> {
+/// Gets a specific node by ID.
+pub async fn get_node(
+    pool: &PgPool,
+    node_id: &str,
+) -> Result<Option<Node>, sqlx::Error> {
     let row = sqlx::query(
         r#"
-        SELECT node_id, hostname, os, architecture, agent_version, status, last_seen, created_at, updated_at
+        SELECT
+            node_id,
+            hostname,
+            os,
+            architecture,
+            agent_version,
+            status,
+            last_seen,
+            created_at,
+            updated_at
         FROM nodes
         WHERE node_id = $1
-        "#
+        "#,
     )
     .bind(node_id)
     .fetch_optional(pool)
@@ -116,14 +244,22 @@ pub async fn get_node(pool: &PgPool, node_id: &str) -> Result<Option<Node>, sqlx
     }))
 }
 
-/// Updates the last_seen timestamp for a node (Heartbeat).
-pub async fn update_heartbeat(pool: &PgPool, node_id: &str) -> Result<bool, sqlx::Error> {
+/// Updates the last_seen timestamp for a node.
+///
+/// This is called by the heartbeat endpoint.
+pub async fn update_heartbeat(
+    pool: &PgPool,
+    node_id: &str,
+) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         r#"
         UPDATE nodes
-        SET last_seen = NOW(), status = 'online'
+        SET
+            last_seen = NOW(),
+            status = 'online',
+            updated_at = NOW()
         WHERE node_id = $1
-        "#
+        "#,
     )
     .bind(node_id)
     .execute(pool)
@@ -132,7 +268,7 @@ pub async fn update_heartbeat(pool: &PgPool, node_id: &str) -> Result<bool, sqlx
     Ok(result.rows_affected() > 0)
 }
 
-/// Persists one telemetry snapshot into PostgreSQL for a specific node.
+/// Persists one telemetry snapshot into PostgreSQL.
 pub async fn insert_metrics(
     pool: &PgPool,
     node_id: &str,
@@ -169,8 +305,7 @@ pub async fn insert_metrics(
     Ok(())
 }
 
-/// Queries historical telemetry records from PostgreSQL starting from `start_time`
-/// up to `limit` records for a specific node, ordered chronologically (oldest to newest).
+/// Queries historical telemetry records for a node.
 pub async fn get_metrics_history(
     pool: &PgPool,
     node_id: &str,
@@ -189,9 +324,10 @@ pub async fn get_metrics_history(
             network_rx,
             network_tx
         FROM telemetry
-        WHERE node_id = $1 AND timestamp >= $2
+        WHERE node_id = $1
+          AND timestamp >= $2
         ORDER BY timestamp ASC
-        LIMIT $3;
+        LIMIT $3
         "#,
     )
     .bind(node_id)
@@ -215,4 +351,4 @@ pub async fn get_metrics_history(
         .collect();
 
     Ok(metrics)
-}
+}

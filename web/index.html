@@ -1,0 +1,256 @@
+< !DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>CloudMesh</title>
+
+        <link rel="stylesheet" href="/style.css">
+    </head>
+
+    <body>
+
+        <header class="topbar">
+            <div class="brand">
+                <div class="logo">CM</div>
+
+                <div>
+                    <h1>CloudMesh</h1>
+                    <span>Infrastructure Monitoring</span>
+                </div>
+            </div>
+
+            <div class="connection">
+                <span class="status-dot"></span>
+                <span id="connectionStatus">
+                    Connected
+                </span>
+            </div>
+        </header>
+
+
+        <main class="container">
+
+            <!-- Overview -->
+
+            <section class="section">
+
+                <div class="section-header">
+                    <div>
+                        <h2>Infrastructure Overview</h2>
+                        <p>
+                            Monitor all registered CloudMesh nodes.
+                        </p>
+                    </div>
+
+                    <button id="refreshButton">
+                        Refresh
+                    </button>
+                </div>
+
+
+                <div class="stats-grid">
+
+                    <div class="stat-card">
+                        <span class="stat-label">
+                            Total Nodes
+                        </span>
+
+                        <strong id="totalNodes">
+                            0
+                        </strong>
+                    </div>
+
+
+                    <div class="stat-card online">
+                        <span class="stat-label">
+                            Online
+                        </span>
+
+                        <strong id="onlineNodes">
+                            0
+                        </strong>
+                    </div>
+
+
+                    <div class="stat-card offline">
+                        <span class="stat-label">
+                            Offline
+                        </span>
+
+                        <strong id="offlineNodes">
+                            0
+                        </strong>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- Nodes -->
+
+            <section class="section">
+
+                <div class="section-header">
+                    <div>
+                        <h2>Nodes</h2>
+
+                        <p>
+                            Registered CloudMesh agents.
+                        </p>
+                    </div>
+                </div>
+
+
+                <div id="nodesContainer" class="nodes-grid">
+
+                    <div class="loading">
+                        Loading nodes...
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- Selected Node -->
+
+            <section id="nodeDetails" class="section hidden">
+
+                <div class="section-header">
+
+                    <div>
+                        <h2 id="selectedNodeName">
+                            Node
+                        </h2>
+
+                        <p id="selectedNodeInfo">
+                            -
+                        </p>
+                    </div>
+
+                    <button id="closeNode">
+                        Close
+                    </button>
+
+                </div>
+
+
+                <div class="metrics-grid">
+
+                    <div class="metric-card">
+                        <span>CPU</span>
+
+                        <strong id="cpuValue">
+                            -
+                        </strong>
+                    </div>
+
+
+                    <div class="metric-card">
+                        <span>Memory</span>
+
+                        <strong id="memoryValue">
+                            -
+                        </strong>
+                    </div>
+
+
+                    <div class="metric-card">
+                        <span>Disk</span>
+
+                        <strong id="diskValue">
+                            -
+                        </strong>
+                    </div>
+
+
+                    <div class="metric-card">
+                        <span>Network RX</span>
+
+                        <strong id="networkRx">
+                            -
+                        </strong>
+                    </div>
+
+
+                    <div class="metric-card">
+                        <span>Network TX</span>
+
+                        <strong id="networkTx">
+                            -
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div class="history-card">
+
+                    <div class="section-header">
+
+                        <div>
+                            <h3>CPU History</h3>
+
+                            <p>
+                                Last 5 minutes
+                            </p>
+                        </div>
+
+                        <select id="historyRange">
+
+                            <option value="5m">
+                                5 minutes
+                            </option>
+
+                            <option value="15m">
+                                15 minutes
+                            </option>
+
+                            <option value="30m">
+                                30 minutes
+                            </option>
+
+                            <option value="1h">
+                                1 hour
+                            </option>
+
+                            <option value="6h">
+                                6 hours
+                            </option>
+
+                            <option value="24h">
+                                24 hours
+                            </option>
+
+                            <option value="7d">
+                                7 days
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="chart-container">
+
+                        <canvas id="cpuChart"></canvas>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+
+        <script src="/app.js"></script>
+
+    </body>
+
+    </html>
